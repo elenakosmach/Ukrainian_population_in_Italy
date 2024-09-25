@@ -1,0 +1,183 @@
+---
+title: "Ukrainian population in Italy 2023"
+author: "Elena Kosmach"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(shiny)
+library(tidyverse)
+library(readxl)
+library(dplyr)
+library(plotly)
+library(ggplot2)
+library(sf)
+library(tmap)
+
+# Leggi i dati dal file Excel, rimuovere l'ultima riga e pulire la colonna 'Territory'
+data <- read_excel("/Users/elena/Desktop/Data source/Municipalities.xlsx", skip = 1) %>%
+  slice(-n()) %>%  
+  mutate(Territory = sub("/.*", "", Territory)) %>%  
+  group_by(Territory) %>%
+  filter(total == max(total)) %>%  
+  ungroup() %>%
+  rename(COMUNE = Territory)#%>%
+  #filter(total >= 10)  # Filtra i comuni con almeno 10 abitanti 
+
+# Leggi i dati spaziali dal file shapefile e rimozione delle colonne non di interesse
+comuni = read_sf("/Users/elena/Desktop/Data source/Limiti01012024/Com01012024/Com01012024_WGS84.shp")%>%
+  select(-matches("^(COD_|COMUNE_A|CC_UTS|PRO_COM|GlobalID)"))%>%
+  group_by(COMUNE) %>%
+  filter(Shape_Area == max(Shape_Area)) %>%
+  ungroup() 
+
+
+# Controlla i tipi di geometria prima del merge
+print(unique(st_geometry_type(comuni)))
+
+
+# Esegui il merge
+df <- inner_join(data, comuni, by = c("COMUNE" = "COMUNE"))
+
+str(df$geometry)  #sfc_MULTIPOLYGON
+
+# Create sf object from tibble 
+sf=st_as_sf(df)
+
+# Controlla i tipi di geometria dopo il merge
+print(unique(st_geometry_type(sf)))
+
+# Verifica le geometrie per eventuali errori
+valid_geometries <- st_is_valid(sf)
+print(sum(!valid_geometries)) # c'erano 69 geometria non valide 
+
+# Se ci sono geometrie non valide, correggile
+sf <- st_make_valid(sf)
+
+# Remove empty geometries
+sf <- sf[!st_is_empty(sf), ]
+
+# Forza il tipo di geometria a MULTIPOLYGON
+sf <- sf %>%
+  mutate(geometry = st_cast(geometry, "MULTIPOLYGON"))
+
+# Controlla i tipi di geometria dopo il merge
+print(unique(st_geometry_type(sf)))
+
+# Rimuovi geometrie vuote
+sf <- sf[!st_is_empty(sf), ]
+
+# Rimuovi geometrie duplicate
+sf <- sf[!duplicated(sf$geometry), ]
+
+# Define the bins and corresponding sizes for bubbles
+bins <- c(0, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, Inf)
+labels <- c("0-19", "20-49", "50-99", "100-199", "200-499", "500-999", "1000-1999", "2000-4999", "5000-9999", "10000+")
+
+# Create a new column in the data for bins
+sf$binned_total <- cut(sf$total, breaks = bins, labels = labels, right = FALSE)
+
+# Define the sizes for each bin
+bubble_sizes <- c(0.05, 0.3, 0.5, 0.7, 1, 1.3, 1.6, 2, 2.5, 3)
+
+# Map the sizes to the bins
+size_mapping <- setNames(bubble_sizes, labels)
+sf$size <- size_mapping[as.character(sf$binned_total)]
+
+
+# Create the map with bubbles
+map_bubbles <- tm_shape(sf) + 
+  tm_bubbles(
+    size = "total",            # Use the computed sizes for the bubble size
+    col = "blue",             # Color of the bubbles
+    alpha = 0.7,             # Adjust transparency of bubbles
+    title.size = "Total Population",
+    scale = 0.5               # Adjust the scale of bubble sizes (tune as needed)
+  ) +
+  tm_layout(
+    title = "Ukrainians in Italy - 2023 | From Ihor Hrudnyy for Nova Post with ❤",
+    title.size = 1.2,
+    main.title.size = 1.2, # Adjust title size
+    bg.color = "white",   
+    fontfamily = "Verdana",
+    legend.position = c("left", "bottom"),
+    legend.title.size = 1.2,
+    legend.text.size = 0.8
+  )
+
+# Set tmap mode to interactive viewing
+tmap_mode("view")
+
+# Display the map
+map_bubbles
+
+## save as stand-alone HTML file ("view" mode)
+tmap_save(map_bubbles, filename = "Ukrainians_in_Italy_2023.html")
+
+# in UI part:
+tmapOutput("my_tmap")
+```
+
+```{r}
+ui <- fluidPage(
+  titlePanel("Ukrainians in Italy - 2023 | From Ihor Hrudnyy for Nova Post with ❤"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      sliderInput("popFilter",
+                  "Minimum Number of Residents:",
+                  min = 0, max = max(sf$total, na.rm = TRUE), value = 10)
+    ),
+    
+    mainPanel(
+      tmapOutput("my_tmap")
+    )
+  )
+)
+
+server <- function(input, output) {
+  output$my_tmap <- renderTmap({
+    # Filtra i dati basandosi sull'input dell'utente
+    sf_filtered <- sf %>% filter(total >= input$popFilter)
+    
+    # Definisci i bin e le dimensioni delle bolle corrispondenti
+    bins <- c(0, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, Inf)
+    labels <- c("0-19", "20-49", "50-99", "100-199", "200-499", "500-999", "1000-1999", "2000-4999", "5000-9999", "10000+")
+    
+    # Crea una nuova colonna nei dati per i bin
+    sf_filtered$binned_total <- cut(sf_filtered$total, breaks = bins, labels = labels, right = FALSE)
+    
+    # Definisci le dimensioni per ciascun bin
+    bubble_sizes <- c(0.1, 0.3, 0.5, 0.7, 1, 1.2, 1.5, 1.8, 2.2, 2.5)  # Dimensioni delle bolle
+    
+    # Mappa le dimensioni ai bin
+    size_mapping <- setNames(bubble_sizes, labels)
+    sf_filtered$size <- size_mapping[as.character(sf_filtered$binned_total)]
+    
+    # Crea la mappa con le bolle di dimensioni variabili
+    tm_shape(sf_filtered) + 
+      tm_bubbles(
+        size = "total",             # Usa la dimensione calcolata per le bolle
+        col = "blue",              # Colore delle bolle
+        alpha = 0.7,               # Trasparenza delle bolle
+        title.size = "Total Population",
+        scale =                 # Scala della dimensione delle bolle (puoi regolare se necessario)
+      ) +
+      tm_layout(
+        title = "Ukrainians in Italy - 2023 | From Ihor Hrudnyy for Nova Post with ❤",
+        title.size = 1.2,
+        bg.color = "white",   
+        fontfamily = "Verdana"
+      )
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
