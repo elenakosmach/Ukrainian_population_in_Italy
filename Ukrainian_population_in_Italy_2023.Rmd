@@ -20,8 +20,10 @@ library(ggplot2)
 library(sf)
 library(tmap)
 
+setwd('/Users/elena/Desktop/Italeen/Data source')
+
 # Leggi i dati dal file Excel, rimuovere l'ultima riga e pulire la colonna 'Territory'
-data <- read_excel("/Users/elena/Desktop/Data source/Municipalities.xlsx", skip = 1) %>%
+data <- read_excel("Municipalities.xlsx", skip = 1) %>%
   slice(-n()) %>%  
   mutate(Territory = sub("/.*", "", Territory)) %>%  
   group_by(Territory) %>%
@@ -31,7 +33,7 @@ data <- read_excel("/Users/elena/Desktop/Data source/Municipalities.xlsx", skip 
   #filter(total >= 10)  # Filtra i comuni con almeno 10 abitanti 
 
 # Leggi i dati spaziali dal file shapefile e rimozione delle colonne non di interesse
-comuni = read_sf("/Users/elena/Desktop/Data source/Limiti01012024/Com01012024/Com01012024_WGS84.shp")%>%
+comuni = read_sf("Limiti01012024/Com01012024/Com01012024_WGS84.shp")%>%
   select(-matches("^(COD_|COMUNE_A|CC_UTS|PRO_COM|GlobalID)"))%>%
   group_by(COMUNE) %>%
   filter(Shape_Area == max(Shape_Area)) %>%
@@ -101,7 +103,7 @@ map_bubbles <- tm_shape(sf) +
     scale = 0.5               # Adjust the scale of bubble sizes (tune as needed)
   ) +
   tm_layout(
-    title = "Ukrainians in Italy - 2023 | From Ihor Hrudnyy for Nova Post with ❤",
+    title = "Ukrainians in Italy - 2023",
     title.size = 1.2,
     main.title.size = 1.2, # Adjust title size
     bg.color = "white",   
@@ -126,7 +128,7 @@ tmapOutput("my_tmap")
 
 ```{r}
 ui <- fluidPage(
-  titlePanel("Ukrainians in Italy - 2023 | From Ihor Hrudnyy for Nova Post with ❤"),
+  titlePanel("Ukrainians in Italy - 2023"),
   
   sidebarLayout(
     sidebarPanel(
@@ -170,7 +172,7 @@ server <- function(input, output) {
         scale =                 # Scala della dimensione delle bolle (puoi regolare se necessario)
       ) +
       tm_layout(
-        title = "Ukrainians in Italy - 2023 | From Ihor Hrudnyy for Nova Post with ❤",
+        title = "Ukrainians in Italy - 2023",
         title.size = 1.2,
         bg.color = "white",   
         fontfamily = "Verdana"
@@ -180,4 +182,3 @@ server <- function(input, output) {
 
 shinyApp(ui = ui, server = server)
 ```
-
