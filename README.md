@@ -14,6 +14,7 @@ This project visualizes the distribution of the Ukrainian population across Ital
 
 4. **Interactive Shiny App**:
    - The project also includes an interactive Shiny application, allowing users to filter the municipalities based on the minimum number of Ukrainian residents. The filtered data is dynamically reflected in the map, providing a customizable view of the data.
+   - http://127.0.0.1:4867/
 
 5. **Output**:
    - The final output is an interactive map where the user can explore the distribution of the Ukrainian population in Italy. The map is also saved as a stand-alone HTML file (`Ukrainians_in_Italy_2023.html`) for easy sharing.
