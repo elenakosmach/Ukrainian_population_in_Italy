@@ -20,6 +20,4 @@ This project visualizes the distribution of the Ukrainian population across Ital
 
 This project showcases how R can be used to integrate spatial data, visualize demographic distributions, and create interactive web applications with Shiny.
 
---- 
 
-You can customize or add more details depending on what you want to emphasize.
